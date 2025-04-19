@@ -600,6 +600,7 @@ public class MyAppTest {
 | `@RestControllerAdvice`      | Centralized REST exception handling |
 | `@SpringApplicationConfiguration` | 🛑 Deprecated, replaced by `@SpringBootTest` |
 
+
  
  ###  `Core Spring Annotation ` 
 
@@ -772,3 +773,315 @@ public class MyAppTest {
       ...
   }
   ```
+  It seems like I can’t do more advanced data analysis right now. Please try again later.
+
+In the meantime, I can still provide you with the **detailed explanations** for each of the **Web and REST annotations** right here:
+
+---
+
+### 🔹 `@Controller`
+- **Purpose**: Marks the class as a Spring MVC controller that returns views (like HTML pages).
+- **Use**: When you're building a traditional web app.
+- **Example**:
+  ```java
+  @Controller
+  public class HomeController {
+      @GetMapping("/")
+      public String home() {
+          return "home"; // Refers to home.html or home.jsp
+      }
+  }
+  ```
+
+---
+
+### 🔹 `@RestController`
+- **Purpose**: Combines `@Controller` + `@ResponseBody`. Used to build REST APIs that return data.
+- **Use**: When building APIs returning JSON or XML.
+- **Example**:
+  ```java
+  @RestController
+  public class UserController {
+      @GetMapping("/user")
+      public User getUser() {
+          return new User("John", "Doe");
+      }
+  }
+  ```
+
+---
+
+### 🔹 `@RequestMapping`
+- **Purpose**: Maps HTTP requests to controller classes/methods.
+- **Use**: For general mappings; can specify method types, paths, headers.
+- **Example**:
+  ```java
+  @RequestMapping("/api")
+  public class ApiController {
+      @RequestMapping("/hello")
+      public String sayHello() {
+          return "Hello!";
+      }
+  }
+  ```
+
+---
+
+### 🔹 `@GetMapping`, `@PostMapping`, `@PutMapping`, `@DeleteMapping`, `@PatchMapping`
+- **Purpose**: Shorthand for `@RequestMapping(method = ...)`
+- **Use**: Makes controller methods more readable.
+
+**Examples**:
+```java
+@GetMapping("/users") // for GET
+public List<User> getUsers() { ... }
+
+@PostMapping("/users") // for POST
+public void createUser(@RequestBody User user) { ... }
+
+@PutMapping("/users/{id}") // for PUT
+public void updateUser(@PathVariable int id, @RequestBody User user) { ... }
+
+@DeleteMapping("/users/{id}") // for DELETE
+public void deleteUser(@PathVariable int id) { ... }
+
+@PatchMapping("/users/{id}") // for PATCH
+public void patchUser(@PathVariable int id, @RequestBody Map<String, Object> updates) { ... }
+```
+
+---
+
+### 🔹 `@PathVariable`
+- **Purpose**: Binds a URI variable to a method parameter.
+- **Example**:
+  ```java
+  @GetMapping("/users/{id}")
+  public User getUser(@PathVariable int id) {
+      return userService.findById(id);
+  }
+  ```
+
+---
+
+### 🔹 `@RequestParam`
+- **Purpose**: Binds a query parameter to a method argument.
+- **Example**:
+  ```java
+  @GetMapping("/search")
+  public List<User> search(@RequestParam String name) {
+      return userService.searchByName(name);
+  }
+  ```
+
+---
+
+### 🔹 `@RequestBody`
+- **Purpose**: Binds HTTP request body to a Java object.
+- **Example**:
+  ```java
+  @PostMapping("/users")
+  public void addUser(@RequestBody User user) {
+      userService.save(user);
+  }
+  ```
+
+---
+
+### 🔹 `@ResponseBody`
+- **Purpose**: Sends the return value directly in the HTTP response (not as a view).
+- **Example**:
+  ```java
+  @ResponseBody
+  @GetMapping("/greet")
+  public String greet() {
+      return "Hello!";
+  }
+  ```
+
+---
+
+### 🔹 `@ResponseStatus`
+- **Purpose**: Sets the HTTP status for a method.
+- **Example**:
+  ```java
+  @ResponseStatus(HttpStatus.CREATED)
+  @PostMapping("/users")
+  public void createUser(@RequestBody User user) {
+      // Save user
+  }
+  ```
+
+---
+
+### 🔹 `@RequestHeader`
+- **Purpose**: Binds a request header to a method parameter.
+- **Example**:
+  ```java
+  @GetMapping("/info")
+  public String getInfo(@RequestHeader("User-Agent") String userAgent) {
+      return "User-Agent: " + userAgent;
+  }
+  ```
+
+---
+
+### 🔹 `@CookieValue`
+- **Purpose**: Binds a cookie value to a method parameter.
+- **Example**:
+  ```java
+  @GetMapping("/preferences")
+  public String getPrefs(@CookieValue("lang") String language) {
+      return "Preferred language: " + language;
+  }
+  ```
+
+Here's a complete explanation of the **Spring Data JPA annotations** you listed — with use cases, purpose, and code examples:
+
+---
+
+### 🔹 `@Entity`
+
+- **Purpose**: Marks a class as a JPA entity (mapped to a database table).
+- **Use Case**: Any class you want persisted in the database.
+- **Example**:
+  ```java
+  @Entity
+  public class User {
+      @Id
+      @GeneratedValue
+      private Long id;
+      private String name;
+  }
+  ```
+
+---
+
+### 🔹 `@Id`
+
+- **Purpose**: Specifies the primary key of an entity.
+- **Use Case**: Required for each JPA entity.
+- **Example**:
+  ```java
+  @Id
+  private Long id;
+  ```
+
+---
+
+### 🔹 `@GeneratedValue`
+
+- **Purpose**: Specifies how the primary key is generated (auto, identity, sequence).
+- **Use Case**: When you want the database to generate primary keys automatically.
+- **Example**:
+  ```java
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
+  ```
+
+---
+
+### 🔹 `@Table`
+
+- **Purpose**: Specifies the name of the table that the entity maps to.
+- **Use Case**: Use when the table name is different from the class name.
+- **Example**:
+  ```java
+  @Entity
+  @Table(name = "users")
+  public class User { ... }
+  ```
+
+---
+
+### 🔹 `@Column`
+
+- **Purpose**: Specifies the details of the column in the table.
+- **Use Case**: Customize column names, nullability, length, etc.
+- **Example**:
+  ```java
+  @Column(name = "user_name", nullable = false, length = 50)
+  private String name;
+  ```
+
+---
+
+### 🔹 `@OneToOne`
+
+- **Purpose**: One-to-one relationship between two entities.
+- **Use Case**: User has one profile.
+- **Example**:
+  ```java
+  @OneToOne
+  @JoinColumn(name = "profile_id")
+  private Profile profile;
+  ```
+
+---
+
+### 🔹 `@OneToMany`
+
+- **Purpose**: One-to-many relationship.
+- **Use Case**: A user has many orders.
+- **Example**:
+  ```java
+  @OneToMany(mappedBy = "user")
+  private List<Order> orders;
+  ```
+
+---
+
+### 🔹 `@ManyToOne`
+
+- **Purpose**: Many entities relate to one entity.
+- **Use Case**: Many orders belong to one user.
+- **Example**:
+  ```java
+  @ManyToOne
+  @JoinColumn(name = "user_id")
+  private User user;
+  ```
+
+---
+
+### 🔹 `@ManyToMany`
+
+- **Purpose**: Many-to-many relationship.
+- **Use Case**: A student can enroll in many courses and vice versa.
+- **Example**:
+  ```java
+  @ManyToMany
+  @JoinTable(name = "student_course",
+             joinColumns = @JoinColumn(name = "student_id"),
+             inverseJoinColumns = @JoinColumn(name = "course_id"))
+  private List<Course> courses;
+  ```
+
+---
+
+### 🔹 `@JoinColumn`
+
+- **Purpose**: Specifies the foreign key column.
+- **Use Case**: Required in relationships to define how tables are linked.
+- **Example**:
+  ```java
+  @ManyToOne
+  @JoinColumn(name = "user_id")
+  private User user;
+  ```
+
+---
+
+### 🔹 `@Repository`
+
+- **Purpose**: Marks a class as a DAO and enables exception translation into Spring’s DataAccessException.
+- **Use Case**: On interfaces or classes that perform DB operations.
+- **Example**:
+  ```java
+  @Repository
+  public interface UserRepository extends JpaRepository<User, Long> {
+      User findByName(String name);
+  }
+  ```
+
+
