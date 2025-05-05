@@ -1428,3 +1428,763 @@ Add dependency:
 | DTO                  | Transfers specific data to avoid entity leaks |
 | ModelMapper          | Auto-map between Entity & DTO                 |
 
+Here are the **Spring Security notes** based on your `SecurityConfig` class:
+
+---
+## 🛡️ Spring Security
+
+### `SecurityConfig.java`
+
+### 📦 Annotations Used
+- `@Configuration`: Marks the class as a source of bean definitions.
+- `@EnableWebSecurity`: Enables Spring Security for web security configuration.
+- `@EnableMethodSecurity`: Enables method-level security annotations like `@PreAuthorize`, `@Secured`, etc.
+- `@RequiredArgsConstructor`: Generates a constructor with required final fields (via Lombok).
+
+---
+
+### 🔐 `SecurityFilterChain` Bean
+```java
+@Bean
+public SecurityFilterChain filterChain(HttpSecurity http) throws Exception
+```
+- **Disables CSRF**: `.csrf().disable()`
+- **Authorizes HTTP Requests**:
+  - `/api/v1/register`, `/login`, `/refresh-token`: **publicly accessible**
+  - `/api/v1/admin/**`: **accessible to ADMIN**
+  - `/api/v1/user/**`: **accessible to USER or ADMIN**
+  - Any other request: **authentication required**
+- **Exception Handling**:
+  - Custom `AccessDeniedHandler` is configured
+- **Session Management**:
+  - `SessionCreationPolicy.STATELESS`: stateless session (important for JWT-based auth)
+- **JWT Filter Added**:
+  - `jwtFilter` is added **before** `UsernamePasswordAuthenticationFilter`
+
+---
+
+### 🔐 `AuthenticationProvider` Bean
+```java
+@Bean
+public AuthenticationProvider authenticationProvider()
+```
+- Uses `DaoAuthenticationProvider` for username/password authentication.
+- Injects `MyUserDetailsService` to load user data.
+- Uses `BCryptPasswordEncoder` to encode passwords.
+- Adds `SimpleAuthorityMapper` to **normalize roles** (like adding `ROLE_` prefix).
+
+---
+
+### 🔐 `AuthenticationManager` Bean
+```java
+@Bean
+public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration)
+```
+- Returns the `AuthenticationManager` built from Spring's auto-configured `AuthenticationConfiguration`.
+
+---
+
+### 🏷️ `RoleHierarchy` Bean
+```java
+@Bean
+public RoleHierarchyImpl roleHierarchy()
+```
+- Defines role inheritance:
+  - `ROLE_ADMIN > ROLE_USER`: Users with `ADMIN` automatically get `USER` permissions.
+
+---
+
+### 🧩 Autowired Dependencies
+- `JwtFilter`: Custom filter that validates JWT token.
+- `CustomAccessDeniedHandler`: Custom handler when access is denied.
+- `MyUserDetailsService`: Loads user-specific data for authentication.
+
+---
+Here's a **clear and detailed breakdown** of both `AuthenticationManager` and `AuthenticationProvider` in Spring Security:
+
+---
+
+## 🔐 `AuthenticationManager`
+
+### ✅ What it is:
+- The **main interface responsible for user authentication** in Spring Security.
+- It receives an `Authentication` object and returns a fully authenticated `Authentication` object if the credentials are valid.
+
+### ✅ Purpose:
+- To **coordinate** the authentication process.
+- Delegates the actual verification work to one or more `AuthenticationProvider`s.
+
+### ✅ Key Method:
+```java
+Authentication authenticate(Authentication authentication) throws AuthenticationException;
+```
+
+### ✅ Example Use:
+In your login controller:
+```java
+Authentication auth = authenticationManager.authenticate(
+    new UsernamePasswordAuthenticationToken(username, password)
+);
+```
+
+---
+
+## 🔌 `AuthenticationProvider`
+
+### ✅ What it is:
+- A **strategy interface** used by `AuthenticationManager` to **verify user credentials**.
+- Contains the actual logic to validate the credentials and load user data.
+
+### ✅ Purpose:
+- To perform specific **authentication mechanisms** (e.g., username/password, OTP, etc.).
+- You can register **multiple providers** (e.g., for different login types).
+
+### ✅ Common Implementation:
+```java
+DaoAuthenticationProvider
+```
+- Uses a `UserDetailsService` to load the user.
+- Uses a `PasswordEncoder` to check the password.
+
+### ✅ Key Methods:
+```java
+Authentication authenticate(Authentication authentication) throws AuthenticationException;
+boolean supports(Class<?> authentication);
+```
+
+---
+
+## 🔄 Internal Flow Between Them
+
+1. The login request reaches the controller.
+2. You call `authenticationManager.authenticate(...)`.
+3. `AuthenticationManager` loops through all registered `AuthenticationProvider`s.
+4. The appropriate `AuthenticationProvider`:
+   - Loads user data via `UserDetailsService`
+   - Verifies password using `PasswordEncoder`
+5. If successful → returns a fully authenticated object.
+6. Spring Security stores it in the **SecurityContext**.
+
+---
+
+## 🔧 Analogy
+
+- **AuthenticationManager** = a **gatekeeper** that checks all keys.
+- **AuthenticationProvider** = a **key checker** that verifies if a particular key (credential) is valid.
+
+
+
+### ✅ `SecurityConfig.java` (Improved Version)
+```java
+package com.rabbani.spring_security.config;
+
+import com.rabbani.spring_security.exception.CustomAccessDeniedHandler;
+import com.rabbani.spring_security.filter.JwtFilter;
+import com.rabbani.spring_security.service.MyUserDetailsService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.authority.mapping.SimpleAuthorityMapper;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+@EnableWebSecurity
+@EnableMethodSecurity
+@RequiredArgsConstructor
+public class SecurityConfig {
+
+    private final JwtFilter jwtFilter;
+    private final CustomAccessDeniedHandler accessDeniedHandler;
+    private final MyUserDetailsService userDetailsService;
+
+    /**
+     * Main security configuration.
+     * - Disables CSRF for APIs.
+     * - Configures public and protected endpoints.
+     * - Uses stateless session for JWT.
+     * - Adds custom JWT filter before Spring’s default auth filter.
+     */
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf().disable()
+            .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api/v1/register", "/api/v1/login", "/api/v1/refresh-token").permitAll()
+                .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/v1/user/**").hasAnyRole("USER", "ADMIN")
+                .anyRequest().authenticated()
+            )
+            .exceptionHandling().accessDeniedHandler(accessDeniedHandler)
+            .and()
+            .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+
+        http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    /**
+     * Authentication provider for Spring Security.
+     * - Uses custom UserDetailsService.
+     * - Encrypts passwords using BCrypt.
+     * - Converts all roles to uppercase without prefix (via SimpleAuthorityMapper).
+     */
+    @Bean
+    public AuthenticationProvider authenticationProvider() {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService);
+        provider.setPasswordEncoder(new BCryptPasswordEncoder());
+        provider.setAuthoritiesMapper(new SimpleAuthorityMapper());
+        return provider;
+    }
+
+    /**
+     * Retrieves the AuthenticationManager from the context.
+     */
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+        return config.getAuthenticationManager();
+    }
+
+    /**
+     * Optional: Role hierarchy to allow ADMIN to have USER privileges.
+     */
+    @Bean
+    public RoleHierarchyImpl roleHierarchy() {
+        RoleHierarchyImpl roleHierarchy = new RoleHierarchyImpl();
+        roleHierarchy.setHierarchy("ROLE_ADMIN > ROLE_USER");
+        return roleHierarchy;
+    }
+}
+```
+
+
+### ✅ `JwtFilter.java` (With Multi-Line Comments)
+
+```java
+package com.rabbani.spring_security.filter;
+
+import java.io.IOException;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import com.rabbani.spring_security.service.JwtService;
+import com.rabbani.spring_security.service.MyUserDetailsService;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+@Component
+public class JwtFilter extends OncePerRequestFilter {
+
+    @Autowired
+    private JwtService jwtService;  // Service to extract and validate JWT
+
+    @Autowired
+    private MyUserDetailsService userDetailsService;  // Service to load user from DB
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+
+        /*
+         * STEP 1: Extract the token from the Authorization header
+         * The token must be prefixed with "Bearer "
+         */
+        String token = request.getHeader("Authorization");
+
+        /*
+         * STEP 2: Validate the format of the token
+         * If it exists and starts with "Bearer ", extract the raw token string
+         */
+        if (token != null && token.startsWith("Bearer ")) {
+            token = token.substring(7); // Remove "Bearer " prefix
+
+            /*
+             * STEP 3: Extract the username (subject) from the token
+             */
+            String username = jwtService.extractUsername(token);
+
+            /*
+             * STEP 4: Proceed only if:
+             * - username is present
+             * - user is not already authenticated in the SecurityContext
+             */
+            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+                /*
+                 * STEP 5: Load user details from DB (using UserDetailsService)
+                 */
+                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+                /*
+                 * STEP 6: Validate the JWT token:
+                 * - Check signature
+                 * - Check expiration
+                 * - Check subject
+                 */
+                if (jwtService.validateToken(token, userDetails)) {
+
+                    /*
+                     * STEP 7: If valid, create authentication object with roles
+                     * and set it in the SecurityContext
+                     */
+                    UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
+            }
+        }
+
+        /*
+         * STEP 8: Continue processing the rest of the filters
+         */
+        filterChain.doFilter(request, response);
+    }
+}
+```
+
+---
+
+### ✅ Summary (In Short)
+
+- **Purpose**: Authenticate user requests by validating JWT tokens.
+- **Runs Once**: Uses `OncePerRequestFilter` to ensure it's executed once per request.
+- **Authorization Header**: Looks for `Bearer <token>` format.
+- **Validation**: Extracts username, loads user from DB, validates token, and sets authentication.
+- **Integration**: Registered in the security config before `UsernamePasswordAuthenticationFilter`.
+
+
+### ✅ `JwtService.java` (With Multi-Line Comments)
+
+```java
+package com.rabbani.spring_security.service;
+
+import java.nio.charset.StandardCharsets;
+import java.security.Key;
+import java.util.Date;
+import java.util.function.Function;
+
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+
+@Service
+public class JwtService {
+
+    // Secret key used to sign the JWT (should ideally be stored securely, not hardcoded)
+    private static final String SECRET_KEY = "VerySecretKeyForJwtSigningThatIsVeryLongToBeSecure12345";
+
+    /*
+     * Returns a HMAC-SHA key generated from the secret key string.
+     * This key is used to sign and validate the JWT.
+     */
+    private Key getSigningKey() {
+        byte[] keyBytes = SECRET_KEY.getBytes(StandardCharsets.UTF_8);
+        return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    /*
+     * Generates a JWT token for the given username.
+     * - Sets subject as username
+     * - Sets current timestamp as issue time
+     * - Sets expiry time to 1 hour from now
+     * - Signs the token with the secret key and HS256 algorithm
+     */
+    public String generateToken(String username) {
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60)) // 1 hour
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    /*
+     * Validates the token by:
+     * - Extracting the username and comparing with UserDetails
+     * - Ensuring the token is not expired
+     */
+    public Boolean validateToken(String token, UserDetails userDetails) {
+        final String extractedUsername = extractUsername(token);
+        return (extractedUsername.equals(userDetails.getUsername()) && !isTokenExpired(token));
+    }
+
+    /*
+     * Extracts the username (subject) from the token.
+     */
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
+
+    /*
+     * Extracts a specific claim from the token using a claimsResolver function.
+     * Can be used to extract subject, expiration, roles, etc.
+     */
+    private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
+    }
+
+    /*
+     * Parses the JWT and extracts all claims from the body.
+     */
+    private Claims extractAllClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    /*
+     * Checks whether the token is expired by comparing expiration date with the current date.
+     */
+    private boolean isTokenExpired(String token) {
+        return extractAllClaims(token).getExpiration().before(new Date());
+    }
+}
+```
+
+---
+
+### ✅ Summary
+
+| Function                | Description                                                                 |
+|-------------------------|-----------------------------------------------------------------------------|
+| `generateToken()`       | Creates a JWT token with a 1-hour expiry and signs it with HS256 algorithm.|
+| `validateToken()`       | Confirms the token is valid (matches user and not expired).                |
+| `extractUsername()`     | Gets the subject (username) from the token.                                |
+| `extractClaim()`        | Generic method to extract any field from token claims.                     |
+| `extractAllClaims()`    | Parses the token and returns all its claims.                               |
+| `isTokenExpired()`      | Checks if the token's expiry time is before now.                           |
+
+---
+
+### ✅ `MyUserDetailsService.java` (With Multi-line Comments)
+
+```java
+package com.rabbani.spring_security.service;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+import com.rabbani.spring_security.model.User;
+import com.rabbani.spring_security.repository.UserRepository;
+
+/*
+ * This service implements Spring Security's UserDetailsService interface.
+ * It is used by the authentication provider to fetch user details from the database
+ * using the username provided during login.
+ */
+@Service
+public class MyUserDetailsService implements UserDetailsService {
+
+    @Autowired
+    private UserRepository userRepo;
+
+    /*
+     * This method is called by Spring Security during the authentication process.
+     * It loads the user from the database using the username.
+     * If the user is found, it wraps the user entity in a custom UserDetails implementation (UserPrincipal).
+     * If not found, it throws UsernameNotFoundException.
+     */
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        User user = userRepo.findByUsername(username);
+        if (user == null) {
+            throw new UsernameNotFoundException("User not found");
+        }
+        return new UserPrincipal(user);
+    }
+}
+```
+
+---
+
+### ✅ Summary
+
+| Element                       | Purpose                                                                 |
+|------------------------------|-------------------------------------------------------------------------|
+| `UserDetailsService`         | Spring Security interface to fetch user details for authentication.     |
+| `loadUserByUsername()`       | Method that finds user by username and returns a `UserDetails` object.  |
+| `UserRepository`             | Spring Data JPA interface used to access user data from the database.   |
+| `UserPrincipal`              | Custom class implementing `UserDetails` to wrap your domain `User`.     |
+| `@Service`                   | Marks this class as a Spring bean to be managed by Spring container.    |
+
+    
+
+---
+
+### ✅ `UserPrincipal.java` (With Multi-line Comments)
+
+```java
+package com.rabbani.spring_security.service;
+
+import java.util.Collection;
+import java.util.Collections;
+
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+import com.rabbani.spring_security.model.User;
+
+/*
+ * UserPrincipal is a custom implementation of Spring Security's UserDetails interface.
+ * It acts as a wrapper around your User entity and tells Spring Security how to extract
+ * authentication and authorization data from your User object.
+ */
+public class UserPrincipal implements UserDetails {
+
+    private final User user;
+
+    // Constructor takes your domain User object and stores it for future reference
+    public UserPrincipal(User user) {
+        this.user = user;
+    }
+
+    /*
+     * This method returns the roles/authorities of the user.
+     * Spring Security expects roles to be prefixed with "ROLE_".
+     * So if the user role is "ADMIN", this returns "ROLE_ADMIN".
+     */
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return Collections.singleton(new SimpleGrantedAuthority("ROLE_" + user.getRole()));
+    }
+
+    /*
+     * Returns the user's password from the User entity.
+     * Used for authentication matching.
+     */
+    @Override
+    public String getPassword() {
+        return user.getPassword();
+    }
+
+    /*
+     * Returns the username (used as the login identifier).
+     */
+    @Override
+    public String getUsername() {
+        return user.getUsername();
+    }
+
+    /*
+     * The following four methods are used to determine the status of the user account.
+     * Returning true means the account is valid and active.
+     */
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;  // Account is not expired
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;  // Account is not locked
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;  // Password credentials are valid (not expired)
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;  // Account is enabled
+    }
+}
+```
+
+---
+
+### ✅ Summary
+
+| Method                          | Purpose                                                                 |
+|----------------------------------|-------------------------------------------------------------------------|
+| `getAuthorities()`              | Returns the user role (e.g., `ROLE_USER`, `ROLE_ADMIN`).                |
+| `getUsername()` / `getPassword()` | Extracts credentials from your `User` entity.                          |
+| `isAccountNonExpired()`         | Always returns `true`; can be enhanced for expiration logic.           |
+| `isAccountNonLocked()`          | Always returns `true`; override if locking logic is needed.            |
+| `isCredentialsNonExpired()`     | Always `true`; can be extended for password aging policies.            |
+| `isEnabled()`                   | Always `true`; override for soft-delete or deactivation support.       |
+
+
+## 🔁 **Spring Security JWT Authentication – Full Flow**
+
+---
+
+### ⚙️ 1. `SecurityConfig.java` – Main Spring Security Configuration
+
+**Purpose:**  
+- Disables CSRF (for APIs)
+- Configures endpoints access (public, admin-only, etc.)
+- Adds `JwtFilter` before the default Spring Security filter
+- Sets session policy to **stateless** (since we're using JWT)
+- Registers custom authentication and role hierarchy beans
+
+**Key Points:**
+- `SecurityFilterChain` defines the core security logic.
+- `authenticationProvider()` sets up `DaoAuthenticationProvider` using your own `UserDetailsService`.
+- `authenticationManager()` allows Spring Security to use this provider to authenticate users.
+
+---
+
+### 📤 2. **Login Request Flow**  
+(Usually POST `/api/v1/login` endpoint)
+
+1. The user sends their `username` and `password`.
+2. You authenticate the credentials using the `AuthenticationManager`.
+3. If valid, a **JWT token** is generated using `JwtService`.
+4. The token is returned to the client for future requests.
+
+---
+
+### 🧠 3. `JwtService.java` – JWT Token Utility
+
+**Purpose:**  
+Handles all JWT operations:
+- **Generate Token** (`generateToken`)
+- **Extract Username** from token (`extractUsername`)
+- **Validate Token** (`validateToken`)
+- **Parse Claims** (token body)
+
+**Uses:**  
+- `io.jsonwebtoken` (JJWT library)
+- A secret signing key to sign and verify tokens.
+
+---
+
+### 🧹 4. `JwtFilter.java` – JWT Filter (Runs for Each Request)
+
+**Purpose:**  
+Intercepts every HTTP request and:
+1. Extracts the JWT token from the `Authorization` header.
+2. Validates the token.
+3. Loads the user using `MyUserDetailsService`.
+4. Sets the user into `SecurityContextHolder` (Spring's internal auth context).
+
+**Without this, Spring wouldn't know who is making the request!**
+
+---
+
+### 👤 5. `MyUserDetailsService.java` – Custom User Fetcher
+
+**Purpose:**  
+Implements `UserDetailsService`, the core interface used by Spring to fetch user details.
+
+**How it works:**
+- Fetches user from the database using `UserRepository`.
+- Wraps it into `UserPrincipal`, which is a Spring-compatible format.
+
+---
+
+### 🧾 6. `UserPrincipal.java` – Adapter Between Your User and Spring
+
+**Purpose:**  
+Spring Security needs a class that implements `UserDetails`.
+
+**Role:**
+- Exposes user's `username`, `password`, and `roles`
+- Makes your `User` model usable by Spring's auth mechanism
+
+---
+
+### 🧑 7. `User.java` – Your Entity
+
+**Not shown**, but likely a JPA entity with fields:
+```java
+private String username;
+private String password;
+private String role;
+```
+
+---
+
+### 🗃️ 8. `UserRepository.java` – DB Interaction
+
+**Likely contains:**
+```java
+User findByUsername(String username);
+```
+
+This allows you to retrieve a user by username for authentication.
+
+---
+
+### 🔐 9. AuthenticationProvider & AuthenticationManager
+
+- `DaoAuthenticationProvider` uses `MyUserDetailsService` and `BCryptPasswordEncoder` to validate login.
+- `AuthenticationManager` delegates auth to the provider.
+
+---
+
+### ✅ 10. Role Hierarchy (Optional but Implemented)
+
+Defined in `SecurityConfig`:
+```java
+ROLE_ADMIN > ROLE_USER
+```
+
+This means any user with `ROLE_ADMIN` also has all permissions of `ROLE_USER`.
+
+---
+
+## 🔄 Request Lifecycle Flow
+
+```
+[Login Request] ➝ Controller ➝ AuthenticationManager ➝ MyUserDetailsService ➝ DB
+                ➝ JWT Created by JwtService ➝ Token sent to client
+
+[Subsequent Requests] ➝ JwtFilter ➝ Token Validated ➝ User loaded from DB ➝ Spring Security Context updated
+                      ➝ Controller ➝ Authorized/Denied based on roles
+```
+
+---
+
+## 📝 Summary
+
+| Component               | Purpose                                                |
+|------------------------|--------------------------------------------------------|
+| `SecurityConfig`        | Configures Spring Security and JWT filter              |
+| `JwtFilter`             | Validates token on every request                       |
+| `JwtService`            | Generates and validates JWT                            |
+| `MyUserDetailsService`  | Loads user from DB                                     |
+| `UserPrincipal`         | Adapts your `User` to Spring's `UserDetails`          |
+| `AuthenticationManager` | Authenticates user using the provider                 |
+| `DaoAuthenticationProvider` | Validates credentials and loads user from service  |
+| `RoleHierarchyImpl`     | Allows role inheritance (ADMIN > USER)                |
+
+
+
+
+
