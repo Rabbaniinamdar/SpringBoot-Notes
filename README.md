@@ -2184,6 +2184,271 @@ This means any user with `ROLE_ADMIN` also has all permissions of `ROLE_USER`.
 | `DaoAuthenticationProvider` | Validates credentials and loads user from service  |
 | `RoleHierarchyImpl`     | Allows role inheritance (ADMIN > USER)                |
 
+In **Spring Boot**, **profiles** are a way to segregate parts of your application configuration and make it only available in certain environments (e.g., development, testing, production).
+
+---
+
+### 🔹 What is a Spring Profile?
+
+A **profile** in Spring Boot allows you to define different configurations for different environments.
+
+You can annotate beans or specify configurations in property files that should only be active when a specific profile is selected.
+
+---
+
+### 🔹 Common Use Cases
+
+* Use different databases in **dev**, **test**, and **prod**
+* Change logging levels per environment
+* Enable/disable features conditionally
+
+---
+
+### 🔹 How to Define a Profile
+
+#### 1. **application.properties/yml** files
+
+Spring Boot will load these based on the active profile.
+
+```properties
+# application-dev.properties
+server.port=8081
+spring.datasource.url=jdbc:h2:mem:devdb
+
+# application-prod.properties
+server.port=80
+spring.datasource.url=jdbc:mysql://prod-db-server/db
+```
+
+#### 2. **application.yml** example
+
+```yaml
+spring:
+  profiles:
+    active: dev
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: jdbc:h2:mem:devdb
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: jdbc:mysql://prod-db-server/db
+```
+
+---
+
+### 🔹 Activating a Profile
+
+#### 1. **In application.properties**
+
+```properties
+spring.profiles.active=dev
+```
+
+#### 2. **As a command-line argument**
+
+```bash
+java -jar myapp.jar --spring.profiles.active=prod
+```
+
+#### 3. **As an environment variable**
+
+```bash
+SPRING_PROFILES_ACTIVE=prod
+```
+
+#### 4. **In application code**
+
+```java
+@Profile("dev")
+@Bean
+public DataSource devDataSource() {
+    // return dev-specific bean
+}
+```
+
+---
+
+### 🔹 Profile-specific Beans
+
+```java
+@Configuration
+public class AppConfig {
+
+    @Bean
+    @Profile("dev")
+    public DataSource devDataSource() {
+        return new HikariDataSource(); // dev config
+    }
+
+    @Bean
+    @Profile("prod")
+    public DataSource prodDataSource() {
+        return new HikariDataSource(); // prod config
+    }
+}
+```
+
+---
+
+### 🔹 Checking Active Profile at Runtime
+
+```java
+@Autowired
+private Environment env;
+
+public void printActiveProfiles() {
+    System.out.println(Arrays.toString(env.getActiveProfiles()));
+}
+```
+
+### 🔹 **Why Use Spring Profiles?**
+
+In real-world applications, different environments need different configurations:
+
+| Environment | Example Config                              |
+| ----------- | ------------------------------------------- |
+| Development | In-memory DB (H2), debug logging            |
+| Testing     | Test stubs, test DB                         |
+| Production  | Real DB, external services, secure settings |
+
+Using profiles, you can easily **switch between environments** without changing code.
+
+---
+
+### 🔹 **How to Define and Use Spring Profiles**
+
+#### 1. **Define Profiles in Configuration Files**
+
+Spring allows separate `application-{profile}.properties` or `.yml` files for each profile:
+
+```properties
+# application-dev.properties
+spring.datasource.url=jdbc:h2:mem:devdb
+spring.jpa.show-sql=true
+```
+
+```properties
+# application-prod.properties
+spring.datasource.url=jdbc:mysql://prod-db-url/mydb
+spring.jpa.show-sql=false
+```
+
+---
+
+#### 2. **Activate a Profile**
+
+✅ You can activate a profile in several ways:
+
+* **application.properties**:
+
+  ```properties
+  spring.profiles.active=dev
+  ```
+
+* **Command Line**:
+
+  ```bash
+  java -jar myapp.jar --spring.profiles.active=prod
+  ```
+
+* **Environment Variable**:
+
+  ```bash
+  SPRING_PROFILES_ACTIVE=prod
+  ```
+
+---
+
+#### 3. **Profile-Specific Beans**
+
+You can annotate beans or configuration classes to load only under certain profiles:
+
+```java
+@Profile("dev")
+@Bean
+public DataSource h2DataSource() {
+    return new EmbeddedDatabaseBuilder()
+        .setType(EmbeddedDatabaseType.H2)
+        .build();
+}
+```
+
+This bean will only be created if the `dev` profile is active.
+
+---
+
+#### 4. **@Profile on Classes**
+
+```java
+@Profile("prod")
+@Configuration
+public class ProdConfiguration {
+    // Beans for production
+}
+```
+
+---
+
+### 🔹 How Spring Resolves Profiles
+
+* First, `application.properties` is read.
+* Then, `application-{profile}.properties` overrides it if `spring.profiles.active` is set.
+* Order of resolution:
+
+  1. `application.properties`
+  2. `application-{profile}.properties`
+  3. Command-line arguments
+  4. Environment variables
+
+---
+
+### 🔹 Best Practices
+
+* Use **`default` profile** for fallback configuration.
+* Avoid hardcoding environment-specific values in code.
+* Keep secrets (like DB passwords) in secure configuration management systems, not in `application-*.properties`.
+
+---
+
+### 🔹 Real-world Use Case Example
+
+Imagine your Spring Boot app connects to different databases based on the environment. Instead of using `if` conditions, just define:
+
+```yaml
+# application-dev.yml
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+```
+
+```yaml
+# application-prod.yml
+spring:
+  datasource:
+    url: jdbc:mysql://prod-db/mydb
+```
+
+And switch environments with:
+
+```bash
+--spring.profiles.active=dev
+```
+
+---
+
+
 
 
 
