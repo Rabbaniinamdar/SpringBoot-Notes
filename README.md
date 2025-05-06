@@ -2447,9 +2447,204 @@ And switch environments with:
 ```
 
 ---
+Here's a clean and professional explanation of how to **read properties in Spring Boot applications**, covering all three main approaches, including pros, use-cases, and examples:
 
+---
 
+## 🔧 **How to Read Properties in Spring Boot**
 
+Spring Boot allows reading values from property files (`application.properties` or `application.yml`) in three primary ways:
 
+---
 
+### 1️⃣ **Using `@Value` Annotation**
+This is the most straightforward way to inject a **single property** value directly into a field.
+
+#### ✅ Use Case:
+Injecting individual configuration values like strings, integers, or booleans.
+
+#### 🧠 Syntax:
+```java
+@Value("${property.name}")
+private String propertyValue;
+```
+
+#### 🧪 Example:
+```properties
+app.title=Spring Boot Application
+```
+
+```java
+@Component
+public class MyComponent {
+
+    @Value("${app.title}")
+    private String appTitle;
+
+    public void printTitle() {
+        System.out.println(appTitle);
+    }
+}
+```
+
+#### ⚠️ Limitation:
+- Not suitable for grouping related configuration.
+- Hard to refactor (property keys are hardcoded).
+
+---
+
+### 2️⃣ **Using `Environment` Interface**
+This gives **programmatic access** to properties and is useful when you want more control or conditional logic.
+
+#### ✅ Use Case:
+Use when you want to access properties dynamically or conditionally.
+
+#### 🧠 Syntax:
+```java
+@Autowired
+private Environment environment;
+
+String value = environment.getProperty("property.name");
+```
+
+#### 🧪 Example:
+```java
+@Component
+public class MyComponent {
+
+    @Autowired
+    private Environment environment;
+
+    public void printTitle() {
+        String title = environment.getProperty("app.title");
+        System.out.println(title);
+    }
+}
+```
+
+#### ✔️ Pros:
+- Flexible, dynamic access
+- Can be used in utility classes or logic blocks
+
+---
+
+### 3️⃣ **Using `@ConfigurationProperties`**
+This is the **recommended** approach for binding a group of related properties into a POJO (Plain Old Java Object).
+
+#### ✅ Use Case:
+When you have multiple related configuration properties, such as database config, mail server, etc.
+
+#### 🧠 Syntax:
+```java
+@ConfigurationProperties(prefix = "app")
+@Component
+public class AppConfig {
+    private String title;
+    private String version;
+    // getters and setters
+}
+```
+
+```properties
+app.title=Spring Boot Application
+app.version=1.0.0
+```
+
+#### 🧪 Example:
+```java
+@Component
+@ConfigurationProperties(prefix = "app")
+public class AppConfig {
+
+    private String title;
+    private String version;
+
+    // getters and setters
+
+    public void printAppInfo() {
+        System.out.println("Title: " + title);
+        System.out.println("Version: " + version);
+    }
+}
+```
+
+#### ✔️ Pros:
+- Type-safe
+- Easy to group and refactor
+- Easy to validate using `@Validated`
+
+---
+
+### 🧠 Summary Table:
+
+| Approach                  | When to Use                       | Pros                          | Limitation                   |
+|--------------------------|-----------------------------------|-------------------------------|------------------------------|
+| `@Value`                 | For single property injection     | Simple, quick                 | Hardcoded keys               |
+| `Environment`            | Dynamic/conditional property access | Flexible, programmatic        | Verbose, not type-safe       |
+| `@ConfigurationProperties` | Grouped configuration             | Type-safe, organized, reusable | Needs additional POJO setup  |
+
+---
+
+Let's break this down and explain it clearly with context.
+
+---
+
+## ✅ **Understanding `@EnableConfigurationProperties` and `@ConfigurationProperties`**
+
+---
+
+### 🔹 1. **`@ConfigurationProperties(prefix = "cards")`**
+
+This annotation is used to **bind external configuration properties (like from `application.properties` or `application.yml`)** to a Java class.
+
+#### 🔸 Example Configuration (`application.yml`):
+
+```yaml
+cards:
+  contact-info:
+    email: support@cards.com
+    phone: 1234567890
+```
+
+#### 🔸 Corresponding DTO (POJO):
+
+```java
+@Data
+@ConfigurationProperties(prefix = "cards.contact-info")
+public class CardsContactInfoDto {
+    private String email;
+    private String phone;
+}
+```
+
+* The fields in the class map to the values under `cards.contact-info`.
+* The `prefix = "cards.contact-info"` tells Spring where to start mapping.
+
+---
+
+### 🔹 2. **`@EnableConfigurationProperties`**
+
+This enables support for `@ConfigurationProperties`-annotated beans. It is used to **register the DTO class as a Spring bean**.
+
+#### 🔸 Example Usage:
+
+```java
+@EnableConfigurationProperties(value = {CardsContactInfoDto.class})
+@Configuration
+public class CardsConfig {
+    // Now CardsContactInfoDto is available as a bean
+}
+```
+
+* This means Spring will read properties and create the `CardsContactInfoDto` bean, injecting values from the config.
+* Without this annotation, Spring Boot won’t know to bind and manage that DTO.
+
+---
+
+## ✅ Summary
+
+| Annotation                                      | Purpose                                                        |
+| ----------------------------------------------- | -------------------------------------------------------------- |
+| `@ConfigurationProperties(prefix = "cards")`    | Binds external config under `cards.*` to a class               |
+| `@EnableConfigurationProperties({Class.class})` | Registers the class as a Spring-managed bean to use the config |
 
