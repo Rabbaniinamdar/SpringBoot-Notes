@@ -2583,11 +2583,7 @@ public class AppConfig {
 | `Environment`            | Dynamic/conditional property access | Flexible, programmatic        | Verbose, not type-safe       |
 | `@ConfigurationProperties` | Grouped configuration             | Type-safe, organized, reusable | Needs additional POJO setup  |
 
----
 
-Let's break this down and explain it clearly with context.
-
----
 
 ## ✅ **Understanding `@EnableConfigurationProperties` and `@ConfigurationProperties`**
 
@@ -2647,4 +2643,250 @@ public class CardsConfig {
 | ----------------------------------------------- | -------------------------------------------------------------- |
 | `@ConfigurationProperties(prefix = "cards")`    | Binds external config under `cards.*` to a class               |
 | `@EnableConfigurationProperties({Class.class})` | Registers the class as a Spring-managed bean to use the config |
+
+### ✅ **IoC Container in Spring (Inversion of Control Container)**
+
+---
+
+### 🔹 What is IoC (Inversion of Control)?
+
+**Inversion of Control** is a principle where the control of creating and managing objects is **transferred from the developer to the framework**.
+
+In Spring, this means:
+
+* **You don’t create objects using `new` keyword**
+* Spring **creates, configures, and manages objects** (called **beans**) for you
+
+---
+
+### 🔹 What is IoC Container?
+
+The **IoC Container** is the **core of Spring Framework**. It is responsible for:
+
+* **Creating beans**
+* **Injecting dependencies**
+* **Managing lifecycle of beans**
+* **Wiring beans together**
+
+> In simple words: **IoC Container is a bean factory** that gives you pre-configured, ready-to-use objects.
+
+---
+
+### 🔹 Types of IoC Containers in Spring
+
+| Container              | Interface                                        | Description                                                            |
+| ---------------------- | ------------------------------------------------ | ---------------------------------------------------------------------- |
+| **BeanFactory**        | `org.springframework.beans.factory.BeanFactory`  | Lightweight container, lazy initialization                             |
+| **ApplicationContext** | `org.springframework.context.ApplicationContext` | Full-featured container, eager initialization, used in real-world apps |
+
+---
+
+### 🔹 How It Works
+
+1. You annotate classes with Spring annotations like `@Component`, `@Service`, `@Repository`, or configure them in XML.
+2. Spring scans and creates objects (beans).
+3. It injects dependencies into them using:
+
+   * Constructor Injection
+   * Setter Injection
+   * Field Injection
+4. You can retrieve these objects from the container or let Spring inject them wherever needed.
+
+---
+
+### 🔹 Example: Using IoC Container
+
+#### 1. Component Classes
+
+```java
+@Component
+public class Engine {
+    public String start() {
+        return "Engine started!";
+    }
+}
+```
+
+```java
+@Component
+public class Car {
+    private final Engine engine;
+
+    @Autowired
+    public Car(Engine engine) {
+        this.engine = engine;
+    }
+
+    public void drive() {
+        System.out.println(engine.start());
+    }
+}
+```
+
+#### 2. Main Application
+
+```java
+@SpringBootApplication
+public class MyApp {
+    public static void main(String[] args) {
+        ApplicationContext context = SpringApplication.run(MyApp.class, args);
+
+        Car car = context.getBean(Car.class);
+        car.drive(); // Output: Engine started!
+    }
+}
+```
+
+Here:
+
+* Spring Boot automatically scans and creates `Engine` and `Car` beans
+* It injects `Engine` into `Car`
+* This is Inversion of Control in action
+
+---
+
+### 🔹 Benefits of IoC Container
+
+* **Loose coupling**
+* **Easier testing**
+* **Centralized configuration**
+* **Lifecycle management**
+* **Dependency injection made simple**
+
+### ✅ **Spring Exception Handling – Complete Overview**
+
+Spring provides a robust and flexible way to handle **exceptions globally, per controller, or per request** using annotations and well-defined patterns.
+
+---
+
+## 🔹 1. **Why Use Exception Handling in Spring?**
+
+* **Graceful error responses** to the client (instead of stack traces).
+* **Centralized error management**.
+* Return **custom status codes** (like 404, 400, 500).
+* Maintain **clean, readable controllers**.
+
+---
+
+## 🔹 2. **Types of Exception Handling in Spring**
+
+| Type                       | Annotation Used                           | Scope                |
+| -------------------------- | ----------------------------------------- | -------------------- |
+| **Per-Method**             | `@ExceptionHandler`                       | One controller       |
+| **Global Handling**        | `@ControllerAdvice` + `@ExceptionHandler` | All controllers      |
+| **Response Customization** | `@ResponseStatus`, `ResponseEntity`       | HTTP status and body |
+
+---
+
+## 🔹 3. **Basic Example with `@ExceptionHandler`**
+
+```java
+@RestController
+public class UserController {
+
+    @GetMapping("/user/{id}")
+    public User getUser(@PathVariable Long id) {
+        return userService.getUserById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+    }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<String> handleUserNotFound(UserNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+}
+```
+
+* This handles `UserNotFoundException` only **within `UserController`**.
+
+---
+
+## 🔹 4. **Global Exception Handling with `@ControllerAdvice`**
+
+```java
+@ControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<String> handleUserNotFound(UserNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<String> handleGeneralException(Exception ex) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                             .body("Something went wrong");
+    }
+}
+```
+
+* `@ControllerAdvice` makes the exception handling **global for all controllers**.
+* You can customize response bodies and status codes for different exceptions.
+
+---
+
+## 🔹 5. **Using `@ResponseStatus` on Custom Exceptions**
+
+```java
+@ResponseStatus(HttpStatus.NOT_FOUND)
+public class UserNotFoundException extends RuntimeException {
+    public UserNotFoundException(String message) {
+        super(message);
+    }
+}
+```
+
+* No need for `@ExceptionHandler` if you just want to map an exception to a specific status.
+* Useful for small projects or quick mappings.
+
+---
+
+## 🔹 6. **Returning Error Details as Object**
+
+```java
+@ControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleUserNotFound(UserNotFoundException ex) {
+        ErrorResponse error = new ErrorResponse(LocalDateTime.now(), ex.getMessage(), 404);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+}
+```
+
+```java
+public class ErrorResponse {
+    private LocalDateTime timestamp;
+    private String message;
+    private int status;
+    // constructor, getters, setters
+}
+```
+
+This gives **structured JSON error responses**.
+
+---
+
+## 🔹 7. **Best Practices**
+
+* Use **custom exception classes** for better clarity.
+* Use `@ControllerAdvice` for global consistency.
+* Avoid exposing internal details (stack traces) in production.
+* Return meaningful HTTP status codes (`400`, `401`, `404`, `500`, etc.).
+
+---
+
+### ✅ Summary
+
+| Annotation          | Purpose                                        |
+| ------------------- | ---------------------------------------------- |
+| `@ExceptionHandler` | Handles exceptions in a controller or globally |
+| `@ControllerAdvice` | Declares global exception handlers             |
+| `@ResponseStatus`   | Maps an exception to an HTTP status code       |
+| `ResponseEntity`    | Full control over response body and status     |
+
+---
+
+
 
